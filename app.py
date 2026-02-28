@@ -328,7 +328,8 @@ elif "Models" in page:
             if 'error' in res: st.error(f"{nm}: {res['error']}");continue
             mse,r2_=res['mse'],res['r2'];pred=res['pred'];resid=yte.values-pred
             c1,c2,c3=st.columns([2,1,1])
-            with c1: st.markdown(f"<div class='mcard'><div style='font-weight:700;font-size:1rem;margin-bottom:12px;color:#e8eaf0;'>{nm}{'<span class=\"badge\">BEST</span>' if nm==best_nm else ''}</div><div style='display:flex;gap:20px;'><div><div class='klabel'>MSE</div><div style='font-weight:700;font-size:1.4rem;color:{A3};'>{mse:.4f}</div></div><div><div class='klabel'>R²</div><div style='font-weight:700;font-size:1.4rem;color:{A};'>{r2_:.4f}</div></div><div><div class='klabel'>RMSE</div><div style='font-weight:700;font-size:1.4rem;color:{A2};'>{mse**.5:.4f}</div></div></div></div>",unsafe_allow_html=True)
+            best_badge = '<span class="badge">BEST</span>' if nm==best_nm else ''
+            with c1: st.markdown(f"<div class='mcard'><div style='font-weight:700;font-size:1rem;margin-bottom:12px;color:#e8eaf0;'>{nm}{best_badge}</div><div style='display:flex;gap:20px;'><div><div class='klabel'>MSE</div><div style='font-weight:700;font-size:1.4rem;color:{A3};'>{mse:.4f}</div></div><div><div class='klabel'>R²</div><div style='font-weight:700;font-size:1.4rem;color:{A};'>{r2_:.4f}</div></div><div><div class='klabel'>RMSE</div><div style='font-weight:700;font-size:1.4rem;color:{A2};'>{mse**.5:.4f}</div></div></div></div>",unsafe_allow_html=True)
             with c2:
                 fig=go.Figure(go.Histogram(x=resid,nbinsx=40,marker_color=A2,opacity=.85,marker_line_width=0));fig.update_layout(**{**PL,'height':170,'title':'Residuals','margin':dict(l=10,r=10,t=30,b=10),'showlegend':False});chart(fig)
             with c3:
