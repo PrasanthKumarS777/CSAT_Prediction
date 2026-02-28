@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder,StandardScaler
 from sklearn.metrics import mean_squared_error,r2_score
 from sklearn.ensemble import ExtraTreesRegressor,RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.decomposition import PCA
 from scipy.stats import f_oneway,ttest_ind,chi2_contingency
 warnings.filterwarnings('ignore')
@@ -70,7 +71,7 @@ def sec(n,t):  st.markdown(f"<div class='sec'><span class='snum'>{n}</span><p cl
 def ibox(t):   st.markdown(f"<div class='ibox'>{t}</div>",unsafe_allow_html=True)
 def kpi(label,val,delta="",color=A):
     st.markdown(f"<div class='kcard'><div class='klabel'>{label}</div><div class='kval' style='color:{color};'>{val}</div><div class='kdelta'>{delta}</div></div>",unsafe_allow_html=True)
-def chart(fig): st.plotly_chart(fig,width='stretch')
+def chart(fig): st.plotly_chart(fig,use_container_width=True)
 def bar(x,y,title="",color=A,h=300,horiz=False):
     fig=go.Figure(go.Bar(x=y if horiz else x,y=x if horiz else y,orientation='h' if horiz else 'v',marker=dict(color=color,line_width=0)))
     fig.update_layout(**{**PL,'height':h,'title':title});chart(fig)
@@ -107,7 +108,12 @@ def preprocess(_df):
 
 def do_train(Xtr,Xte,ytr,yte):
     res={}
-    for name,mdl in [('CatBoost',None),('Random Forest',RandomForestRegressor(n_estimators=100,max_depth=10,random_state=42,n_jobs=-1)),('XGBoost',None)]:
+    for name,mdl in [
+        ('CatBoost',None),
+        ('Random Forest',RandomForestRegressor(n_estimators=100,max_depth=10,random_state=42,n_jobs=-1)),
+        ('XGBoost',None),
+        ('ANN',None)   # ← Deep Learning: Multi-Layer Perceptron (ANN)
+    ]:
         try:
             if name=='CatBoost':
                 from catboost import CatBoostRegressor
@@ -115,6 +121,21 @@ def do_train(Xtr,Xte,ytr,yte):
             elif name=='XGBoost':
                 from xgboost import XGBRegressor
                 mdl=XGBRegressor(random_state=42,objective='reg:squarederror',nthread=-1,verbosity=0,n_estimators=100,learning_rate=0.1,max_depth=5)
+            elif name=='ANN':
+                # Deep Learning ANN — 4-layer feedforward neural network
+                # Uses sklearn MLPRegressor (no extra install needed, fully sklearn-compatible)
+                mdl=MLPRegressor(
+                    hidden_layer_sizes=(256, 128, 64, 32),
+                    activation='relu',
+                    solver='adam',
+                    learning_rate_init=0.001,
+                    max_iter=300,
+                    random_state=42,
+                    early_stopping=True,
+                    validation_fraction=0.1,
+                    n_iter_no_change=15,
+                    batch_size=64
+                )
             mdl.fit(Xtr,ytr);yp=mdl.predict(Xte)
             res[name]=dict(model=mdl,mse=float(mean_squared_error(yte,yp)),r2=float(r2_score(yte,yp)),pred=yp)
         except Exception as e: res[name]=dict(error=str(e))
@@ -160,13 +181,13 @@ with st.sidebar:
 <div style='font-size:.65rem;color:#374151;line-height:1.9;'>
   PROJECT · DeepCSAT DL<br>
   TYPE · EDA + Regression<br>
-  MODELS · CB · RF · XGB<br>
+  MODELS · CB · RF · XGB · ANN<br>
   <span style='color:#4b5563;'>Prasanth Kumar Sahu</span>
 </div>""",unsafe_allow_html=True)
 
 # ── pages ─────────────────────────────────────────────────────────────────────
 if "Overview" in page:
-    st.markdown(f"<div class='hero'><div class='htitle'>DeepCSAT</div><div class='hsub'>Customer Satisfaction Score Prediction Engine</div><div><span class='tag'>eCommerce Analytics</span><span class='tag'>ML Regression</span><span class='tag'>CatBoost · RF · XGBoost</span><span class='tag'>NLP Pipeline</span></div><div style='margin-top:18px;font-size:.85rem;color:#6b7280;max-width:650px;line-height:1.7;'>A deep learning-powered analytical dashboard predicting CSAT scores from {r:,} e-commerce customer interaction records — enabling real-time service quality insight.</div></div>",unsafe_allow_html=True)
+    st.markdown(f"<div class='hero'><div class='htitle'>DeepCSAT</div><div class='hsub'>Customer Satisfaction Score Prediction Engine</div><div><span class='tag'>eCommerce Analytics</span><span class='tag'>ML Regression</span><span class='tag'>CatBoost · RF · XGBoost · ANN</span><span class='tag'>NLP Pipeline</span><span class='tag'>Deep Learning</span></div><div style='margin-top:18px;font-size:.85rem;color:#6b7280;max-width:650px;line-height:1.7;'>A deep learning-powered analytical dashboard predicting CSAT scores from {r:,} e-commerce customer interaction records — enabling real-time service quality insight.</div></div>",unsafe_allow_html=True)
     cols=st.columns(4)
     with cols[0]: kpi("Total Records",f"{r:,}","20 columns",A)
     with cols[1]: kpi("Avg CSAT Score",avg,"out of 5.0",A)
@@ -184,7 +205,7 @@ if "Overview" in page:
         fig.update_traces(marker_line_width=0);fig.update_layout(**{**PL,'height':240,'showlegend':False,'coloraxis_showscale':False});chart(fig)
     sec("03","ML Pipeline")
     cols=st.columns(4)
-    steps=[("01","Data Ingestion",f"{r:,} rows · {c_} cols"),("02","EDA & Stats","14 charts · 3 tests"),("03","Preprocessing","Encode · Datetime FE"),("04","NLP Pipeline","Contractions · TF-IDF"),("05","Feature Select","ExtraTrees Top-8"),("06","PCA Reduction",f"10 components · {pca_var:.2f} var"),("07","Model Training","CB · RF · XGBoost"),("08","Evaluation","MSE · R² · Radar")]
+    steps=[("01","Data Ingestion",f"{r:,} rows · {c_} cols"),("02","EDA & Stats","14 charts · 3 tests"),("03","Preprocessing","Encode · Datetime FE"),("04","NLP Pipeline","Contractions · TF-IDF"),("05","Feature Select","ExtraTrees Top-8"),("06","PCA Reduction",f"10 components · {pca_var:.2f} var"),("07","Model Training","CB · RF · XGB · ANN"),("08","Evaluation","MSE · R² · Radar")]
     for i,(n,t,d) in enumerate(steps):
         with cols[i%4]: st.markdown(f"<div class='mcard' style='padding:14px;'><div style='font-size:.62rem;color:{A};margin-bottom:4px;'>STEP {n}</div><div style='font-weight:700;font-size:.88rem;margin-bottom:4px;color:#e8eaf0;'>{t}</div><div style='font-size:.72rem;color:#6b7280;'>{d}</div></div>",unsafe_allow_html=True)
 
@@ -193,18 +214,18 @@ elif "Explorer" in page:
     t1,t2,t3,t4=st.tabs(["📋 Raw Data","📐 Info","🕳️ Missing","📈 Stats"])
     with t1:
         n=st.slider("Rows",5,200,20)
-        st.dataframe(df_raw.head(n),width='stretch')
+        st.dataframe(df_raw.head(n),use_container_width=True)
         ibox(f"<b style='color:{A};'>{r:,} rows</b> · <b style='color:{A};'>{c_} columns</b> · Duplicates: <b style='color:{A};'>{df_raw.duplicated().sum()}</b>")
     with t2:
         info_df=pd.DataFrame({'Column':df_raw.columns,'Dtype':df_raw.dtypes.astype(str),'Non-Null':df_raw.notnull().sum().values,'Null':df_raw.isnull().sum().values,'Unique':[df_raw[c].nunique() for c in df_raw.columns]})
-        st.dataframe(info_df,width='stretch',hide_index=True)
+        st.dataframe(info_df,use_container_width=True,hide_index=True)
     with t3:
         mv=df_raw.isnull().sum().sort_values(ascending=False);mvp=(mv/r*100).round(2)
         fig=go.Figure(go.Bar(x=mv.index,y=mvp.values,marker=dict(color=mvp.values.tolist(),colorscale=[[0,'#1f2430'],[.5,A2],[1,A3]],line_width=0)))
         fig.update_layout(**{**PL,'height':300,'xaxis_tickangle':-35,'yaxis_title':'Missing %'});chart(fig)
-        st.dataframe(pd.DataFrame({'Column':mv.index,'Missing':mv.values,'%':mvp.values}),width='stretch',hide_index=True)
+        st.dataframe(pd.DataFrame({'Column':mv.index,'Missing':mv.values,'%':mvp.values}),use_container_width=True,hide_index=True)
     with t4:
-        st.dataframe(df_raw.describe().T.style.format("{:.2f}"),width='stretch')
+        st.dataframe(df_raw.describe().T.style.format("{:.2f}"),use_container_width=True)
 
 elif "EDA" in page:
     hero("EDA & Visualisations","14 Interactive Charts · Business Insights")
@@ -310,12 +331,12 @@ elif "Features" in page:
             st.markdown(f"<div style='display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #1f2430;'><div style='width:26px;height:26px;border-radius:50%;background:{clr}22;border:1px solid {clr}44;display:flex;align-items:center;justify-content:center;font-size:.68rem;color:{clr};flex-shrink:0;'>{n}</div><div><div style='font-weight:600;font-size:.88rem;color:#e8eaf0;'>{t}</div><div style='font-size:.73rem;color:#6b7280;margin-top:2px;'>{d}</div></div></div>",unsafe_allow_html=True)
 
 elif "Models" in page:
-    hero("Model Training","CatBoost · Random Forest · XGBoost — Live Training")
+    hero("Model Training","CatBoost · Random Forest · XGBoost · ANN — Live Training")
     ibox(f"Training on <b style='color:{A};'>PCA-reduced features (10 components, {pca_var*100:.1f}% variance)</b> · 80/20 split · all models use <b style='color:{A};'>n_jobs=-1</b>")
     if st.button("⚡ Train All Models"):
         st.session_state.pop('results',None)
     if 'results' not in st.session_state:
-        with st.spinner("Training on all CPU cores — please wait (~60s)..."):
+        with st.spinner("Training on all CPU cores — please wait (~90s)..."):
             st.session_state['results']=do_train(Xtr,Xte,ytr,yte)
         st.rerun()
     results=st.session_state.get('results',{})
@@ -358,9 +379,9 @@ elif "Comparison" in page:
     fig=go.Figure()
     for i,m in enumerate(ms):
         vals=[imn(mv)[i],imn(rmv)[i],nm_(rv)[i],imn(mv)[i]];cats=['MSE(inv)','RMSE(inv)','R²','MSE(inv)']
-        fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=m,line_color=[A,A2,A3][i%3]))
+        fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=m,line_color=[A,A2,A3,GO][i%4]))
     fig.update_layout(**{**PL,'height':360,'polar':dict(bgcolor='#111318',radialaxis=dict(gridcolor='#1f2430',linecolor='#1f2430'),angularaxis=dict(gridcolor='#1f2430',linecolor='#1f2430')),'title':'Performance Radar (normalised)'});chart(fig)
-    st.dataframe(pd.DataFrame({'Model':ms,'MSE':[f'{v:.4f}' for v in mv],'RMSE':[f'{v:.4f}' for v in rmv],'R²':[f'{v:.4f}' for v in rv],'Status':['🏆 Best' if m==bm else '—' for m in ms]}),width='stretch',hide_index=True)
+    st.dataframe(pd.DataFrame({'Model':ms,'MSE':[f'{v:.4f}' for v in mv],'RMSE':[f'{v:.4f}' for v in rmv],'R²':[f'{v:.4f}' for v in rv],'Status':['🏆 Best' if m==bm else '—' for m in ms]}),use_container_width=True,hide_index=True)
 
 elif "Predictor" in page:
     hero("Live CSAT Predictor","Enter interaction details → Instant CSAT prediction")
@@ -384,7 +405,7 @@ elif "Predictor" in page:
         with c8: sh2=st.slider("Responded Hour",0,23,11)
         with c9: sd_=st.slider("Responded DoW",0,6,1)
         rt=st.slider("Response Time (hrs)",0.0,24.0,0.5,step=0.1)
-        submitted=st.form_submit_button("🔮 Predict CSAT Score",width='stretch')
+        submitted=st.form_submit_button("🔮 Predict CSAT Score",use_container_width=True)
     if submitted:
         le2=LabelEncoder();enc=lambda v,vs: int(le2.fit(vs).transform([v])[0]) if v in vs else 0
         inp={'channel_name':[enc(channel,['inbound','outbound','outcall'])],'category':[enc(category,['order related','returns','cancellation','refund related','product queries','payments related','feedback','others','app/website','offers & cashback'])],'Sub-category':[0],'Agent Shift':[enc(shift,['morning','evening','night','afternoon'])],'Tenure Bucket':[enc(tenure,['0-30','31-60','61-90','>90','on job training'])],'issue_reported_hour':[rh],'issue_reported_dayofweek':[rd],'issue_responded_hour':[sh2],'issue_responded_dayofweek':[sd_],'response_time_hrs':[rt]}
@@ -397,17 +418,17 @@ elif "Export" in page:
     hero("Export & Report","Download cleaned data · Model metrics · Full summary")
     sec("01","Download Cleaned Dataset")
     ibox(f"Cleaned dataset with label encoding & response_time_hrs feature. Shape: {df_clean.shape[0]:,} × {df_clean.shape[1]}")
-    st.download_button("📥 Download Cleaned CSV",df_clean.to_csv(index=False).encode(),"eCommerce_cleaned.csv","text/csv",width='stretch')
+    st.download_button("📥 Download Cleaned CSV",df_clean.to_csv(index=False).encode(),"eCommerce_cleaned.csv","text/csv",use_container_width=True)
     sec("02","Model Performance Report")
     if 'results' not in st.session_state:
         with st.spinner("Training..."): st.session_state['results']=do_train(Xtr,Xte,ytr,yte)
     results=st.session_state['results'];valid={k:v for k,v in results.items() if 'error' not in v}
     if valid:
         rpt=pd.DataFrame({'Model':list(valid.keys()),'MSE':[f"{v['mse']:.4f}" for v in valid.values()],'RMSE':[f"{v['mse']**.5:.4f}" for v in valid.values()],'R²':[f"{v['r2']:.4f}" for v in valid.values()]})
-        st.dataframe(rpt,width='stretch',hide_index=True)
-        st.download_button("📥 Download Metrics CSV",rpt.to_csv(index=False).encode(),"model_metrics.csv","text/csv",width='stretch')
+        st.dataframe(rpt,use_container_width=True,hide_index=True)
+        st.download_button("📥 Download Metrics CSV",rpt.to_csv(index=False).encode(),"model_metrics.csv","text/csv",use_container_width=True)
     sec("03","Auto-Generated Dataset Summary")
     rows_,cols_=df_raw.shape;miss_cols=df_raw.isnull().sum()
     summary=f"DEEPCSAT — DATASET SUMMARY REPORT\n{'='*50}\nTotal Records   : {rows_:,}\nTotal Columns   : {cols_}\nDuplicate Rows  : {df_raw.duplicated().sum()}\nAvg CSAT Score  : {df_raw['CSAT Score'].mean():.3f}\n5-Star Rate     : {(df_raw['CSAT Score']==5).sum()/rows_*100:.1f}%\n1-Star Rate     : {(df_raw['CSAT Score']==1).sum()/rows_*100:.1f}%\nMissing Overall : {df_raw.isnull().sum().sum()/(rows_*cols_)*100:.1f}%\nPCA Variance    : {pca_var*100:.2f}%\n\nMISSING VALUES PER COLUMN:\n{'-'*35}\n{miss_cols[miss_cols>0].to_string()}\n\nSTATISTICAL DESCRIPTION:\n{'-'*35}\n{df_raw.describe().to_string()}"
     st.code(summary,language='')
-    st.download_button("📥 Download Summary TXT",summary.encode(),"dataset_summary.txt","text/plain",width='stretch')
+    st.download_button("📥 Download Summary TXT",summary.encode(),"dataset_summary.txt","text/plain",use_container_width=True)

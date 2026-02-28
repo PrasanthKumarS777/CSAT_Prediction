@@ -692,9 +692,175 @@ except Exception as e:
 print()
 
 
-# ── STEP 23: CATBOOST FEATURE IMPORTANCE ────────────────────────
+# ── STEP 23: ANN (DEEP LEARNING) ────────────────────────────────
 print("=" * 60)
-print("STEP 23: CatBoost Feature Importance")
+print("STEP 23: ANN (Deep Learning) - Baseline + Tuned")
+print("=" * 60)
+
+mse_ann = mse_ann_tuned = r2_ann = r2_ann_tuned = None
+
+try:
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+    from tensorflow.keras.callbacks import EarlyStopping
+    from tensorflow.keras.optimizers import Adam
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # suppress TF info logs
+
+    print(f"TensorFlow version: {tf.__version__}")
+
+    # ── ANN Baseline ──────────────────────────────────────────────
+    tf.random.set_seed(42)
+    ann_baseline = Sequential([
+        Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+        BatchNormalization(),
+        Dropout(0.3),
+        Dense(64,  activation='relu'),
+        BatchNormalization(),
+        Dropout(0.2),
+        Dense(32,  activation='relu'),
+        Dense(1)
+    ], name='ANN_Baseline')
+
+    ann_baseline.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
+    es = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True, verbose=0)
+
+    ann_baseline.fit(
+        X_train, y_train,
+        epochs=100, batch_size=64,
+        validation_split=0.1,
+        callbacks=[es],
+        verbose=0
+    )
+
+    y_pred_ann = ann_baseline.predict(X_test, verbose=0).flatten()
+    mse_ann    = mean_squared_error(y_test, y_pred_ann)
+    r2_ann     = r2_score(y_test, y_pred_ann)
+    print(f"ANN Baseline  MSE: {mse_ann:.4f}, R2: {r2_ann:.4f}")
+
+    # Baseline chart
+    pd.DataFrame({'Metric': ['MSE', 'R2'], 'Baseline': [mse_ann, r2_ann]}) \
+      .set_index('Metric').plot(kind='bar', legend=False,
+                                title='ANN Baseline Metrics', color='mediumpurple')
+    plt.tight_layout()
+    plt.savefig('outputs/23_ann_baseline.png', dpi=80)
+    plt.close()
+    print("  Chart saved: 23_ann_baseline.png")
+
+    # ── ANN Tuned (deeper architecture + lower lr) ────────────────
+    tf.random.set_seed(42)
+    es_tuned = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True, verbose=0)
+
+    ann_tuned = Sequential([
+        Dense(256, activation='relu', input_shape=(X_train.shape[1],)),
+        BatchNormalization(),
+        Dropout(0.3),
+        Dense(128, activation='relu'),
+        BatchNormalization(),
+        Dropout(0.2),
+        Dense(64,  activation='relu'),
+        BatchNormalization(),
+        Dropout(0.1),
+        Dense(32,  activation='relu'),
+        Dense(1)
+    ], name='ANN_Tuned')
+
+    ann_tuned.compile(optimizer=Adam(learning_rate=0.0005), loss='mse')
+    history = ann_tuned.fit(
+        X_train, y_train,
+        epochs=150, batch_size=32,
+        validation_split=0.1,
+        callbacks=[es_tuned],
+        verbose=0
+    )
+
+    y_pred_ann_tuned = ann_tuned.predict(X_test, verbose=0).flatten()
+    mse_ann_tuned    = mean_squared_error(y_test, y_pred_ann_tuned)
+    r2_ann_tuned     = r2_score(y_test, y_pred_ann_tuned)
+    print(f"ANN Tuned     MSE: {mse_ann_tuned:.4f}, R2: {r2_ann_tuned:.4f}")
+
+    # Comparison chart
+    pd.DataFrame({'Metric': ['MSE', 'R2'],
+                  'Baseline': [mse_ann, r2_ann],
+                  'Tuned':    [mse_ann_tuned, r2_ann_tuned]}) \
+      .set_index('Metric').plot(kind='bar', title='ANN: Baseline vs Tuned', color=['mediumpurple', 'darkorchid'])
+    plt.tight_layout()
+    plt.savefig('outputs/24_ann_tuned.png', dpi=80)
+    plt.close()
+    print("  Chart saved: 24_ann_tuned.png")
+
+    # Training history (loss curve)
+    plt.figure(figsize=(8, 5))
+    plt.plot(history.history['loss'],     label='Train Loss', color='mediumpurple')
+    plt.plot(history.history['val_loss'], label='Val Loss',   color='darkorchid', linestyle='--')
+    plt.title('ANN Tuned — Training Loss Curve')
+    plt.xlabel('Epoch')
+    plt.ylabel('MSE Loss')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('outputs/25_ann_loss_curve.png', dpi=80)
+    plt.close()
+    print("  Chart saved: 25_ann_loss_curve.png")
+
+    # Save the tuned ANN model
+    os.makedirs("models", exist_ok=True)
+    ann_tuned.save("models/ann_tuned.keras")
+    print("  ANN Tuned model saved -> models/ann_tuned.keras")
+
+except ImportError:
+    print("TensorFlow not installed. Falling back to MLPRegressor (sklearn ANN)...")
+    try:
+        from sklearn.neural_network import MLPRegressor
+
+        # Baseline MLP
+        mlp_base = MLPRegressor(
+            hidden_layer_sizes=(128, 64, 32),
+            activation='relu', solver='adam',
+            max_iter=200, random_state=42,
+            early_stopping=True, validation_fraction=0.1,
+            n_iter_no_change=10
+        )
+        mlp_base.fit(X_train, y_train)
+        y_pred_ann = mlp_base.predict(X_test)
+        mse_ann    = mean_squared_error(y_test, y_pred_ann)
+        r2_ann     = r2_score(y_test, y_pred_ann)
+        print(f"ANN (MLP) Baseline  MSE: {mse_ann:.4f}, R2: {r2_ann:.4f}")
+
+        # Tuned MLP
+        mlp_tuned = MLPRegressor(
+            hidden_layer_sizes=(256, 128, 64, 32),
+            activation='relu', solver='adam',
+            learning_rate_init=0.0005,
+            max_iter=300, random_state=42,
+            early_stopping=True, validation_fraction=0.1,
+            n_iter_no_change=15
+        )
+        mlp_tuned.fit(X_train, y_train)
+        y_pred_ann_tuned = mlp_tuned.predict(X_test)
+        mse_ann_tuned    = mean_squared_error(y_test, y_pred_ann_tuned)
+        r2_ann_tuned     = r2_score(y_test, y_pred_ann_tuned)
+        print(f"ANN (MLP) Tuned     MSE: {mse_ann_tuned:.4f}, R2: {r2_ann_tuned:.4f}")
+
+        pd.DataFrame({'Metric': ['MSE', 'R2'],
+                      'Baseline': [mse_ann, r2_ann],
+                      'Tuned':    [mse_ann_tuned, r2_ann_tuned]}) \
+          .set_index('Metric').plot(kind='bar', title='ANN (MLP): Baseline vs Tuned', color=['mediumpurple', 'darkorchid'])
+        plt.tight_layout()
+        plt.savefig('outputs/24_ann_tuned.png', dpi=80)
+        plt.close()
+
+    except Exception as e2:
+        print(f"ANN fallback also failed: {e2}")
+
+except Exception as e:
+    print(f"ANN failed: {e}")
+
+print()
+
+
+# ── STEP 24: CATBOOST FEATURE IMPORTANCE ────────────────────────
+print("=" * 60)
+print("STEP 24: CatBoost Feature Importance")
 print("=" * 60)
 
 try:
@@ -723,7 +889,7 @@ try:
     plt.title('Top 10 Feature Importances (CatBoost)')
     plt.gca().invert_yaxis()
     plt.tight_layout()
-    plt.savefig('outputs/21_catboost_feature_importance.png', dpi=80)
+    plt.savefig('outputs/26_catboost_feature_importance.png', dpi=80)
     plt.close()
     print("CatBoost feature importance chart saved.")
 
@@ -731,39 +897,43 @@ except Exception as e:
     print(f"Feature importance plot skipped: {e}")
 
 
-# ── STEP 24: FINAL SUMMARY ──────────────────────────────────────
+# ── STEP 25: FINAL SUMMARY ──────────────────────────────────────
 print()
 print("=" * 60)
-print("STEP 24: Final Model Comparison Summary")
+print("STEP 25: Final Model Comparison Summary")
 print("=" * 60)
 
 summary = pd.DataFrame({
     'Model': [
         'CatBoost Baseline', 'CatBoost Tuned',
         'Random Forest Baseline', 'Random Forest Tuned',
-        'XGBoost Baseline', 'XGBoost Tuned'
+        'XGBoost Baseline', 'XGBoost Tuned',
+        'ANN Baseline', 'ANN Tuned'
     ],
-    'MSE': [mse_cat, mse_cat_cv, mse_rf, mse_rf_cv, mse_xgb, mse_xgb_cv],
-    'R2':  [r2_cat,  r2_cat_cv,  r2_rf,  r2_rf_cv,  r2_xgb,  r2_xgb_cv]
+    'MSE': [mse_cat, mse_cat_cv, mse_rf, mse_rf_cv,
+            mse_xgb, mse_xgb_cv, mse_ann, mse_ann_tuned],
+    'R2':  [r2_cat,  r2_cat_cv,  r2_rf,  r2_rf_cv,
+            r2_xgb,  r2_xgb_cv,  r2_ann, r2_ann_tuned]
 }).dropna()
 
 print(summary.to_string(index=False))
 
 # Save final comparison chart
 if not summary.empty:
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    colors = ['steelblue' if 'ANN' not in m else 'mediumpurple' for m in summary['Model']]
     summary.plot(kind='bar', x='Model', y='MSE', ax=axes[0],
-                 color='steelblue', legend=False,
+                 color=colors, legend=False,
                  title='MSE Comparison (lower is better)')
     summary.plot(kind='bar', x='Model', y='R2',  ax=axes[1],
-                 color='darkorange', legend=False,
+                 color=colors, legend=False,
                  title='R2 Comparison (higher is better)')
     for ax in axes:
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=30, ha='right')
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=35, ha='right')
     plt.tight_layout()
-    plt.savefig('outputs/22_model_comparison.png', dpi=80)
+    plt.savefig('outputs/27_model_comparison.png', dpi=80)
     plt.close()
-    print("\nModel comparison chart saved -> outputs/22_model_comparison.png")
+    print("\nFinal model comparison chart saved -> outputs/27_model_comparison.png")
 
 print()
 print("=" * 60)
